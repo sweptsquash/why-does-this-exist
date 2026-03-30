@@ -1,0 +1,10 @@
+interface:
+  display_name: "wde Development"
+  short_description: "Architecture and implementation patterns"
+  brand_color: "#8B5CF6"
+
+policy:
+  allow_implicit_invocation: true
+
+dependencies:
+  tools: []

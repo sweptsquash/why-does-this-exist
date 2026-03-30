@@ -1,0 +1,10 @@
+interface:
+  display_name: "Security Guidelines"
+  short_description: "Secure coding patterns for wde CLI"
+  brand_color: "#DC2626"
+
+policy:
+  allow_implicit_invocation: true
+
+dependencies:
+  tools: []

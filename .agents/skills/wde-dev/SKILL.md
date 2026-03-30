@@ -1,0 +1,1 @@
+../../../.claude/skills/wde-dev/SKILL.md

@@ -99,6 +99,62 @@ wde src/utils/parser.ts:142
 
 ---
 
+## How Context is Gathered
+
+`wde` works in layers — **local git data is always available**, GitHub API adds richer context when accessible:
+
+### Layer 1: Local Git (No auth required)
+
+Everything from your cloned repo:
+
+```bash
+git blame -L 142,142 file.ts    # → commit SHA, author, date
+git show <sha>                   # → commit message + full diff
+git log --oneline               # → commit history
+```
+
+**This alone is useful** — commit messages and diffs often contain valuable context.
+
+### Layer 2: GitHub API (Auth required for private repos)
+
+The *real* gold is in PR discussions:
+
+| Data | Where it lives | Why it matters |
+|------|---------------|----------------|
+| PR description | GitHub only | Detailed explanation of *why* |
+| Review comments | GitHub only | Debates, alternatives considered |
+| Linked issues | GitHub only | Original bug reports, requirements |
+| Issue comments | GitHub only | User reports, reproduction steps |
+
+### Authentication Logic
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Is GITHUB_TOKEN set?                                   │
+│    ├─ Yes → Full context (local + PR + issues)          │
+│    └─ No                                                │
+│         ├─ Public repo → Full context (rate-limited)    │
+│         └─ Private repo → Local-only mode               │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Flags for Control
+
+```bash
+# Full context (default) - uses GitHub API if available
+wde src/file.ts:42
+
+# Local only - skip GitHub entirely, works offline
+wde src/file.ts:42 --local
+
+# Explicit GitHub fetch even without token (public repos)
+wde src/file.ts:42 --github
+```
+
+**No auth? No problem.** The tool degrades gracefully — you still get explanations based on commit history and diffs.
+
+---
+
 ## Features
 
 | Feature | Description |
@@ -147,11 +203,14 @@ chmod +x wde && sudo mv wde /usr/local/bin/
 # Required: Anthropic API key for AI explanations
 export ANTHROPIC_API_KEY="sk-ant-..."
 
-# Optional: GitHub token for private repos (public repos work without it)
+# Optional: GitHub token (only needed for private repo PR/issue context)
+# Not needed for: public repos, or when using --local flag
 export GITHUB_TOKEN="ghp_..."
 ```
 
 Create a `.env` file or add to your shell profile.
+
+> **Note:** The tool works without `GITHUB_TOKEN` — it will use local git history. The token adds richer context from PRs and issues.
 
 ---
 
@@ -179,6 +238,7 @@ wde src/file.ts:50 --model claude-haiku-4-5
 | Flag | Description |
 |------|-------------|
 | `--fn <name>` | Find function by name instead of line number |
+| `--local` | Use only local git data (no GitHub API, works offline) |
 | `--json` | Output structured JSON |
 | `--verbose` | Show the full context trail sent to Claude |
 | `--model <model>` | Claude model to use (default: claude-sonnet-4-20250514) |
