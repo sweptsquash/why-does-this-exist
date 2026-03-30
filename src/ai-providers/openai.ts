@@ -1,23 +1,11 @@
+import OpenAI from 'openai';
 import type { AIProvider, ProviderConfig } from './types';
 import { AIError, ConfigError } from '../errors';
 import { getApiKey } from '../config-manager';
 
-interface OpenAIMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-interface OpenAIChoice {
-  message: { content: string };
-  delta?: { content?: string };
-}
-
-interface OpenAIResponse {
-  choices: OpenAIChoice[];
-}
-
 export class OpenAIProvider implements AIProvider {
   name = 'OpenAI (GPT)';
+  private client: OpenAI | null = null;
   private config: ProviderConfig;
   private resolvedApiKey: string | null = null;
 
@@ -39,8 +27,15 @@ export class OpenAIProvider implements AIProvider {
     return apiKey;
   }
 
-  private getBaseUrl(): string {
-    return this.config.baseUrl || 'https://api.openai.com/v1';
+  private async getClient(): Promise<OpenAI> {
+    if (!this.client) {
+      const apiKey = await this.resolveApiKey();
+      this.client = new OpenAI({
+        apiKey,
+        baseURL: this.config.baseUrl || undefined,
+      });
+    }
+    return this.client;
   }
 
   getDefaultModel(): string {
@@ -76,63 +71,26 @@ export class OpenAIProvider implements AIProvider {
     model: string,
     onChunk: (chunk: string) => void
   ): Promise<string> {
-    const apiKey = await this.resolveApiKey();
-    const baseUrl = this.getBaseUrl();
-
-    const messages: OpenAIMessage[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
+    const client = await this.getClient();
 
     try {
-      const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: model || this.getDefaultModel(),
-          messages,
-          max_tokens: 500,
-          stream: true,
-        }),
+      let fullResponse = '';
+
+      const stream = await client.chat.completions.create({
+        model: model || this.getDefaultModel(),
+        max_tokens: 500,
+        stream: true,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
       });
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`${response.status}: ${error}`);
-      }
-
-      let fullResponse = '';
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) {
-        throw new AIError('Failed to get response stream');
-      }
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter(line => line.startsWith('data: '));
-
-        for (const line of lines) {
-          const data = line.slice(6);
-          if (data === '[DONE]') continue;
-
-          try {
-            const parsed = JSON.parse(data) as { choices: Array<{ delta?: { content?: string } }> };
-            const content = parsed.choices[0]?.delta?.content;
-            if (content) {
-              fullResponse += content;
-              onChunk(content);
-            }
-          } catch {
-            // Skip invalid JSON
-          }
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content;
+        if (content) {
+          fullResponse += content;
+          onChunk(content);
         }
       }
 
@@ -147,35 +105,19 @@ export class OpenAIProvider implements AIProvider {
     userPrompt: string,
     model: string
   ): Promise<string> {
-    const apiKey = await this.resolveApiKey();
-    const baseUrl = this.getBaseUrl();
-
-    const messages: OpenAIMessage[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
+    const client = await this.getClient();
 
     try {
-      const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: model || this.getDefaultModel(),
-          messages,
-          max_tokens: 500,
-        }),
+      const response = await client.chat.completions.create({
+        model: model || this.getDefaultModel(),
+        max_tokens: 500,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
       });
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`${response.status}: ${error}`);
-      }
-
-      const data = await response.json() as OpenAIResponse;
-      return data.choices[0]?.message?.content || '';
+      return response.choices[0]?.message?.content || '';
     } catch (error) {
       throw this.handleError(error);
     }
@@ -186,18 +128,20 @@ export class OpenAIProvider implements AIProvider {
       return error;
     }
 
+    if (error instanceof OpenAI.APIError) {
+      if (error.status === 401) {
+        return new ConfigError('Invalid API key. Run `wde auth` to reconfigure.');
+      }
+      if (error.status === 429) {
+        return new AIError('Rate limit exceeded. Please try again in a moment.');
+      }
+      if (error.status === 503) {
+        return new AIError('API is currently overloaded. Please try again.');
+      }
+      return new AIError(`OpenAI API error: ${error.message}`);
+    }
+
     const message = error instanceof Error ? error.message : String(error);
-
-    if (message.includes('401') || message.includes('authentication')) {
-      return new ConfigError('Invalid API key. Run `wde auth` to reconfigure.');
-    }
-    if (message.includes('429') || message.includes('rate_limit')) {
-      return new AIError('Rate limit exceeded. Please try again in a moment.');
-    }
-    if (message.includes('503') || message.includes('overloaded')) {
-      return new AIError('API is currently overloaded. Please try again.');
-    }
-
     return new AIError(`OpenAI API error: ${message}`);
   }
 }

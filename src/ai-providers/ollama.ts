@@ -1,18 +1,10 @@
+import { Ollama } from 'ollama';
 import type { AIProvider, ProviderConfig } from './types';
 import { AIError, ConfigError } from '../errors';
 
-interface OllamaMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-interface OllamaResponse {
-  message: { content: string };
-  done: boolean;
-}
-
 export class OllamaProvider implements AIProvider {
   name = 'Ollama (Local)';
+  private client: Ollama | null = null;
   private config: ProviderConfig;
 
   constructor(config: ProviderConfig) {
@@ -21,6 +13,13 @@ export class OllamaProvider implements AIProvider {
 
   private getBaseUrl(): string {
     return this.config.baseUrl || process.env.OLLAMA_HOST || 'http://localhost:11434';
+  }
+
+  private getClient(): Ollama {
+    if (!this.client) {
+      this.client = new Ollama({ host: this.getBaseUrl() });
+    }
+    return this.client;
   }
 
   getDefaultModel(): string {
@@ -38,23 +37,14 @@ export class OllamaProvider implements AIProvider {
   }
 
   async validate(): Promise<{ valid: boolean; error?: string }> {
-    const baseUrl = this.getBaseUrl();
-
     try {
-      const response = await fetch(`${baseUrl}/api/tags`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000),
-      });
-
-      if (!response.ok) {
-        return { valid: false, error: 'Could not connect to Ollama server' };
-      }
-
+      const client = this.getClient();
+      await client.list();
       return { valid: true };
     } catch {
       return {
         valid: false,
-        error: `Could not connect to Ollama at ${baseUrl}. Is Ollama running?`
+        error: `Could not connect to Ollama at ${this.getBaseUrl()}. Is Ollama running?`
       };
     }
   }
@@ -65,55 +55,25 @@ export class OllamaProvider implements AIProvider {
     model: string,
     onChunk: (chunk: string) => void
   ): Promise<string> {
-    const baseUrl = this.getBaseUrl();
-
-    const messages: OllamaMessage[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
+    const client = this.getClient();
 
     try {
-      const response = await fetch(`${baseUrl}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: model || this.getDefaultModel(),
-          messages,
-          stream: true,
-        }),
+      let fullResponse = '';
+
+      const stream = await client.chat({
+        model: model || this.getDefaultModel(),
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        stream: true,
       });
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`${response.status}: ${error}`);
-      }
-
-      let fullResponse = '';
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) {
-        throw new AIError('Failed to get response stream');
-      }
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter(line => line.trim());
-
-        for (const line of lines) {
-          try {
-            const parsed = JSON.parse(line) as OllamaResponse;
-            const content = parsed.message?.content;
-            if (content) {
-              fullResponse += content;
-              onChunk(content);
-            }
-          } catch {
-            // Skip invalid JSON
-          }
+      for await (const chunk of stream) {
+        const content = chunk.message?.content;
+        if (content) {
+          fullResponse += content;
+          onChunk(content);
         }
       }
 
@@ -128,31 +88,19 @@ export class OllamaProvider implements AIProvider {
     userPrompt: string,
     model: string
   ): Promise<string> {
-    const baseUrl = this.getBaseUrl();
-
-    const messages: OllamaMessage[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
+    const client = this.getClient();
 
     try {
-      const response = await fetch(`${baseUrl}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: model || this.getDefaultModel(),
-          messages,
-          stream: false,
-        }),
+      const response = await client.chat({
+        model: model || this.getDefaultModel(),
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        stream: false,
       });
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`${response.status}: ${error}`);
-      }
-
-      const data = await response.json() as OllamaResponse;
-      return data.message?.content || '';
+      return response.message?.content || '';
     } catch (error) {
       throw this.handleError(error);
     }
