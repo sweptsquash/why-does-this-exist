@@ -8,6 +8,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Bun](https://img.shields.io/badge/Bun-000000?logo=bun&logoColor=white)](https://bun.sh/)
 [![Claude API](https://img.shields.io/badge/Claude-API-blueviolet)](https://anthropic.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT-green)](https://openai.com/)
+[![Ollama](https://img.shields.io/badge/Ollama-Local-orange)](https://ollama.ai/)
 
 <br/>
 
@@ -83,8 +85,9 @@ wde src/utils/parser.ts:142
 | **Workflow** | Interactive session | Single command, instant answer |
 | **Token usage** | High (full conversation) | Low (optimized prompt ~8k tokens) |
 | **Output** | Conversational | Structured with source citations |
-| **Cost per query** | ~$0.05-0.15 | ~$0.01 |
+| **Cost per query** | ~$0.05-0.15 | ~$0.01 (or free with Ollama) |
 | **CI/Tooling integration** | Limited | `--json` flag for automation |
+| **Provider flexibility** | Claude only | Claude, GPT, or local LLMs |
 
 ### When to use what
 
@@ -130,9 +133,16 @@ The *real* gold is in PR discussions:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Is GITHUB_TOKEN set?                                   │
-│    ├─ Yes → Full context (local + PR + issues)          │
-│    └─ No                                                │
+│  AI Provider                                            │
+│    ├─ Anthropic → Needs API key (keychain or env)       │
+│    ├─ OpenAI → Needs API key (keychain or env)          │
+│    └─ Ollama → No API key needed (local)                │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  GitHub Context                                         │
+│    ├─ Token set → Full context (local + PR + issues)    │
+│    └─ No token                                          │
 │         ├─ Public repo → Full context (rate-limited)    │
 │         └─ Private repo → Local-only mode               │
 └─────────────────────────────────────────────────────────┘
@@ -162,7 +172,9 @@ wde src/file.ts:42 --github
 | **Git Blame Tracing** | Automatically identifies the commit that introduced a line |
 | **PR Context Fetching** | Retrieves PR title, body, labels, and all review comments |
 | **Issue Linking** | Extracts and fetches all linked issues (`Fixes #123`, `Closes #456`) |
-| **AI Explanation** | Claude API synthesizes everything into a 3-5 sentence explanation |
+| **Multi-Provider AI** | Choose between Claude, GPT, or local LLMs via Ollama |
+| **Secure Auth** | API keys stored in system keychain, not config files |
+| **Streaming Output** | See AI response as it's generated |
 | **Function Lookup** | Use `--fn functionName` to trace by function instead of line number |
 | **JSON Output** | `--json` flag for editor/tooling integration |
 
@@ -199,18 +211,65 @@ chmod +x wde && sudo mv wde /usr/local/bin/
 
 ## Setup
 
-```bash
-# Required: Anthropic API key for AI explanations
-export ANTHROPIC_API_KEY="sk-ant-..."
+Run the interactive setup command:
 
-# Optional: GitHub token (only needed for private repo PR/issue context)
-# Not needed for: public repos, or when using --local flag
-export GITHUB_TOKEN="ghp_..."
+```bash
+wde auth
 ```
 
-Create a `.env` file or add to your shell profile.
+This will guide you through:
+1. **Choose your AI provider** — Anthropic (Claude), OpenAI (GPT), or Ollama (local)
+2. **Enter your API key** — Securely stored in your system keychain (not in config files!)
+3. **Optional: GitHub token** — For private repo PR/issue context
 
-> **Note:** The tool works without `GITHUB_TOKEN` — it will use local git history. The token adds richer context from PRs and issues.
+```
+$ wde auth
+
+  wde - Authentication Setup
+
+? Select AI provider:
+  > Anthropic (Claude) - Best for reasoning over messy PR/issue text (recommended)
+    OpenAI (GPT) - GPT-4o and other OpenAI models
+    Ollama (Local) - Run locally with Llama, Mistral, etc. (free, no API key)
+
+? Enter your Anthropic API key: sk-ant-***
+✓ API key stored securely in system keychain
+
+? Set up GitHub token? (optional, for private repos)
+  > Yes
+    No
+
+? Enter your GitHub token: ghp_***
+✓ GitHub token stored securely
+
+✓ Setup complete! Run: wde src/file.ts:42
+```
+
+### Where are credentials stored?
+
+Credentials are stored in your **system keychain** — not in plain text files:
+
+| Platform | Storage |
+|----------|---------|
+| macOS | Keychain Access |
+| Windows | Credential Manager |
+| Linux | libsecret (GNOME Keyring / KDE Wallet) |
+
+This means:
+- ✅ Safe to commit your `~/.config/wde/config.json` (contains only preferences, no secrets)
+- ✅ Credentials are encrypted at rest
+- ✅ Works with existing system security policies
+
+### Environment Variable Override
+
+You can also use environment variables (useful for CI/CD):
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."  # or OPENAI_API_KEY
+export GITHUB_TOKEN="ghp_..."          # optional
+```
+
+Environment variables take precedence over keychain credentials.
 
 ---
 
@@ -229,8 +288,13 @@ wde src/file.ts:50 --json
 # Show full context sent to AI
 wde src/file.ts:50 --verbose
 
-# Use a different Claude model
+# Use a different AI provider
+wde src/file.ts:50 --provider openai
+wde src/file.ts:50 --provider ollama
+
+# Use a different model
 wde src/file.ts:50 --model claude-haiku-4-5
+wde src/file.ts:50 --provider openai --model gpt-4o-mini
 ```
 
 ### Flags
@@ -238,12 +302,20 @@ wde src/file.ts:50 --model claude-haiku-4-5
 | Flag | Description |
 |------|-------------|
 | `--fn <name>` | Find function by name instead of line number |
+| `--provider <name>` | AI provider: `anthropic`, `openai`, or `ollama` |
 | `--local` | Use only local git data (no GitHub API, works offline) |
 | `--json` | Output structured JSON |
-| `--verbose` | Show the full context trail sent to Claude |
-| `--model <model>` | Claude model to use (default: claude-sonnet-4-20250514) |
+| `--verbose` | Show the full context trail sent to AI |
+| `--model <model>` | Model to use (default depends on provider) |
 | `--help` | Show help |
 | `--version` | Show version |
+
+### Subcommands
+
+| Command | Description |
+|---------|-------------|
+| `wde auth` | Interactive setup for API keys and GitHub token |
+| `wde status` | Check credential status (coming soon) |
 
 ---
 
@@ -257,9 +329,10 @@ wde src/file.ts:50 --model claude-haiku-4-5
                                                   │
                                                   ▼
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   Output     │◀────│  Claude API  │◀────│  GitHub API  │
-│  Explanation │     │  Synthesis   │     │  PR + Issues │
-└──────────────┘     └──────────────┘     └──────────────┘
+│   Output     │◀────│ AI Provider  │◀────│  GitHub API  │
+│  Explanation │     │ Claude/GPT/  │     │  PR + Issues │
+└──────────────┘     │   Ollama     │     └──────────────┘
+                     └──────────────┘
 ```
 
 1. **Blame** → Runs `git blame -L N,N --porcelain` to find the commit
@@ -267,8 +340,8 @@ wde src/file.ts:50 --model claude-haiku-4-5
 3. **PR Detection** → Parses commit message for PR references (`#123`, merge commits)
 4. **GitHub Fetch** → Retrieves PR body, review comments, and linked issues
 5. **Context Assembly** → Builds a structured prompt within token budget
-6. **AI Explanation** → Claude synthesizes into a clear, actionable explanation
-7. **Output** → Formatted terminal output with source citations
+6. **AI Explanation** → Your chosen AI provider synthesizes into a clear explanation
+7. **Output** → Streaming response with source citations
 
 ---
 
@@ -278,7 +351,8 @@ wde src/file.ts:50 --model claude-haiku-4-5
 |-----------|------------|-----|
 | Runtime | **Bun** | Fast CLI startup, native TS, `$\`...\`` shell helpers |
 | Language | **TypeScript** | Type-safe API responses, better DX |
-| AI | **Claude API** | Best at reasoning over messy PR/issue text |
+| AI | **Claude / GPT / Ollama** | Multi-provider support for flexibility |
+| Credentials | **keytar** | Secure system keychain storage |
 | CLI Parser | **citty** | Lightweight, zero deps, TypeScript-first |
 | Colors | **picocolors** | Zero deps, respects `NO_COLOR` |
 | Testing | **bun:test** | Built-in, no config overhead |
@@ -294,14 +368,19 @@ wde src/file.ts:50 --model claude-haiku-4-5
 - [x] Linked issue extraction + fetching
 - [x] Claude API explanation (3-5 sentences)
 - [x] Function name lookup (`--fn`)
-- [x] Environment variable auth
 - [x] Plain stdout + JSON output
 
-### Planned (v2.0)
+### Added in v2.0
+- [x] Multi-provider support (Anthropic, OpenAI, Ollama)
+- [x] Local model support via Ollama
+- [x] Secure keychain credential storage
+- [x] Interactive `wde auth` setup
+- [x] Streaming AI responses
+
+### Planned (v3.0)
 - [ ] GitLab / Bitbucket support
 - [ ] VSCode extension
 - [ ] Neovim plugin
-- [ ] Local model support (Ollama)
 - [ ] Caching layer
 - [ ] Interactive TUI mode
 
@@ -326,6 +405,9 @@ wde src/file.ts:50 --model claude-haiku-4-5
 git clone https://github.com/zain534102/why-does-this-exist.git
 cd why-does-this-exist
 bun install
+
+# Set up authentication
+bun run src/cli.ts auth
 
 # Run locally
 bun run src/cli.ts src/example.ts:10
