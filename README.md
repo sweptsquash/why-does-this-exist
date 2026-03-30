@@ -52,6 +52,53 @@ The answer exists somewhere — scattered across a PR description, three issue t
 
 ---
 
+## Why not just use Claude Code CLI?
+
+You *could* ask Claude Code: "Why does this code exist?" But here's what you'd have to do:
+
+```bash
+# With Claude Code CLI (manual process)
+claude
+> read src/utils/parser.ts
+> run git blame -L 142,142 src/utils/parser.ts
+> "what's the PR for commit a3f9c21?"
+> run gh pr view 234
+> "what issues were linked?"
+> run gh issue view 198
+> "now explain why this code exists"
+```
+
+**With `wde`, it's one command:**
+
+```bash
+wde src/utils/parser.ts:142
+```
+
+### The Difference
+
+| | Claude Code CLI | `wde` |
+|---|---|---|
+| **Purpose** | General-purpose AI assistant | Built specifically for code archaeology |
+| **Context gathering** | Manual — you fetch and paste | Automatic — traces blame → PR → issues |
+| **Workflow** | Interactive session | Single command, instant answer |
+| **Token usage** | High (full conversation) | Low (optimized prompt ~8k tokens) |
+| **Output** | Conversational | Structured with source citations |
+| **Cost per query** | ~$0.05-0.15 | ~$0.01 |
+| **CI/Tooling integration** | Limited | `--json` flag for automation |
+
+### When to use what
+
+| Use `wde` when... | Use Claude Code when... |
+|---|---|
+| "Why was this written this way?" | "Refactor this function" |
+| "What problem did this solve?" | "Add a new feature" |
+| "Is it safe to delete this?" | "Fix this bug" |
+| "What were the alternatives considered?" | "Write tests for this" |
+
+**`wde` is a scalpel. Claude Code is a Swiss Army knife.** Use the right tool for the job.
+
+---
+
 ## Features
 
 | Feature | Description |
