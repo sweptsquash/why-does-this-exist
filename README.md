@@ -403,8 +403,6 @@ bun test
 bun run typecheck
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
 ---
 
 ## License
