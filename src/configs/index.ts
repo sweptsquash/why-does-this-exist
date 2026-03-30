@@ -2,8 +2,11 @@
  * Central configuration module
  * Aggregates all config files similar to Laravel's config system
  *
+ * Note: Credentials (API keys, tokens) are NOT stored here.
+ * They are managed via system keychain in config-manager.ts
+ *
  * Usage:
- *   import { config, github, anthropic, app } from './configs';
+ *   import { config, github, app } from './configs';
  *
  *   // Access via unified config
  *   config().github.apiBase
@@ -13,23 +16,19 @@
  */
 
 import { type GitHubConfig, loadGitHubConfig } from './github';
-import { type AnthropicConfig, loadAnthropicConfig } from './anthropic';
 import { type AppConfig, loadAppConfig } from './app';
 
 export type { GitHubConfig } from './github';
-export type { AnthropicConfig } from './anthropic';
 export type { AppConfig } from './app';
 
 export interface Config {
   github: GitHubConfig;
-  anthropic: AnthropicConfig;
   app: AppConfig;
 }
 
 // Cached config instances
 let configInstance: Config | null = null;
 let githubInstance: GitHubConfig | null = null;
-let anthropicInstance: AnthropicConfig | null = null;
 let appInstance: AppConfig | null = null;
 
 /**
@@ -39,7 +38,6 @@ export function config(): Config {
   if (!configInstance) {
     configInstance = {
       github: github(),
-      anthropic: anthropic(),
       app: app(),
     };
   }
@@ -57,16 +55,6 @@ export function github(): GitHubConfig {
 }
 
 /**
- * Get Anthropic configuration
- */
-export function anthropic(): AnthropicConfig {
-  if (!anthropicInstance) {
-    anthropicInstance = loadAnthropicConfig();
-  }
-  return anthropicInstance;
-}
-
-/**
  * Get app configuration
  */
 export function app(): AppConfig {
@@ -81,22 +69,7 @@ export function app(): AppConfig {
  */
 export function reloadConfig(): Config {
   githubInstance = null;
-  anthropicInstance = null;
   appInstance = null;
   configInstance = null;
   return config();
-}
-
-/**
- * Check if GitHub token is configured
- */
-export function hasGitHubToken(): boolean {
-  return !!github().token;
-}
-
-/**
- * Check if Anthropic API key is configured
- */
-export function hasAnthropicKey(): boolean {
-  return !!anthropic().apiKey;
 }

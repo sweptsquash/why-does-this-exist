@@ -2,11 +2,8 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import {
   config,
   github,
-  anthropic,
   app,
   reloadConfig,
-  hasGitHubToken,
-  hasAnthropicKey,
 } from '../src/configs';
 
 describe('Config Module', () => {
@@ -35,18 +32,6 @@ describe('Config Module', () => {
       process.env.GITHUB_API_BASE = 'https://github.mycompany.com/api/v3';
       reloadConfig();
       expect(github().apiBase).toBe('https://github.mycompany.com/api/v3');
-    });
-
-    it('should return null token when not set', () => {
-      delete process.env.GITHUB_TOKEN;
-      reloadConfig();
-      expect(github().token).toBeNull();
-    });
-
-    it('should return token when set', () => {
-      process.env.GITHUB_TOKEN = 'ghp_test123';
-      reloadConfig();
-      expect(github().token).toBe('ghp_test123');
     });
 
     it('should return default user agent', () => {
@@ -89,38 +74,6 @@ describe('Config Module', () => {
       delete process.env.WDE_GITHUB_BATCH_SIZE;
       reloadConfig();
       expect(github().batchSize).toBe(5);
-    });
-  });
-
-  describe('anthropic config', () => {
-    it('should return null API key when not set', () => {
-      delete process.env.ANTHROPIC_API_KEY;
-      reloadConfig();
-      expect(anthropic().apiKey).toBeNull();
-    });
-
-    it('should return API key when set', () => {
-      process.env.ANTHROPIC_API_KEY = 'sk-ant-test123';
-      reloadConfig();
-      expect(anthropic().apiKey).toBe('sk-ant-test123');
-    });
-
-    it('should return default model', () => {
-      delete process.env.WDE_DEFAULT_MODEL;
-      reloadConfig();
-      expect(anthropic().defaultModel).toBe('claude-sonnet-4-20250514');
-    });
-
-    it('should return custom model when set', () => {
-      process.env.WDE_DEFAULT_MODEL = 'claude-3-haiku-20240307';
-      reloadConfig();
-      expect(anthropic().defaultModel).toBe('claude-3-haiku-20240307');
-    });
-
-    it('should return default max tokens', () => {
-      delete process.env.WDE_MAX_RESPONSE_TOKENS;
-      reloadConfig();
-      expect(anthropic().maxTokens).toBe(500);
     });
   });
 
@@ -176,7 +129,6 @@ describe('Config Module', () => {
     it('should return all configs in one object', () => {
       const cfg = config();
       expect(cfg.github).toBeDefined();
-      expect(cfg.anthropic).toBeDefined();
       expect(cfg.app).toBeDefined();
     });
 
@@ -187,41 +139,15 @@ describe('Config Module', () => {
     });
   });
 
-  describe('helper functions', () => {
-    it('hasGitHubToken should return false when token not set', () => {
-      delete process.env.GITHUB_TOKEN;
-      reloadConfig();
-      expect(hasGitHubToken()).toBe(false);
-    });
-
-    it('hasGitHubToken should return true when token set', () => {
-      process.env.GITHUB_TOKEN = 'ghp_test';
-      reloadConfig();
-      expect(hasGitHubToken()).toBe(true);
-    });
-
-    it('hasAnthropicKey should return false when key not set', () => {
-      delete process.env.ANTHROPIC_API_KEY;
-      reloadConfig();
-      expect(hasAnthropicKey()).toBe(false);
-    });
-
-    it('hasAnthropicKey should return true when key set', () => {
-      process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
-      reloadConfig();
-      expect(hasAnthropicKey()).toBe(true);
-    });
-  });
-
   describe('reloadConfig', () => {
     it('should reload config with new values', () => {
-      process.env.GITHUB_TOKEN = 'old-token';
+      process.env.WDE_MAX_TOKENS = '5000';
       reloadConfig();
-      expect(github().token).toBe('old-token');
+      expect(app().maxTokenBudget).toBe(5000);
 
-      process.env.GITHUB_TOKEN = 'new-token';
+      process.env.WDE_MAX_TOKENS = '10000';
       reloadConfig();
-      expect(github().token).toBe('new-token');
+      expect(app().maxTokenBudget).toBe(10000);
     });
   });
 });
