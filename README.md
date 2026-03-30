@@ -193,20 +193,6 @@ bun install -g why-does-this-exist
 npx why-does-this-exist src/file.ts:42
 ```
 
-### Standalone Binary
-
-Download pre-built binaries from [Releases](https://github.com/zain534102/why-does-this-exist/releases):
-
-```bash
-# macOS (Apple Silicon)
-curl -fsSL https://github.com/zain534102/why-does-this-exist/releases/latest/download/wde-darwin-arm64 -o wde
-chmod +x wde && sudo mv wde /usr/local/bin/
-
-# Linux (x64)
-curl -fsSL https://github.com/zain534102/why-does-this-exist/releases/latest/download/wde-linux-x64 -o wde
-chmod +x wde && sudo mv wde /usr/local/bin/
-```
-
 ---
 
 ## Setup
