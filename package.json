@@ -1,6 +1,6 @@
 {
   "name": "why-does-this-exist",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A CLI tool that traces git blame → PRs → issues → reviews and explains legacy code decisions in plain English using AI",
   "type": "module",
   "bin": {
@@ -54,6 +54,13 @@
   "engines": {
     "bun": ">=1.0.0"
   },
-  "os": ["darwin", "linux", "win32"],
-  "cpu": ["x64", "arm64"]
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
 }
