@@ -3,7 +3,6 @@
   "version": "1.0.2",
   "description": "A CLI tool that traces git blame → PRs → issues → reviews and explains legacy code decisions in plain English using AI",
   "type": "module",
-  "types": "src/types.d.ts",
   "bin": {
     "wde": "./src/cli.ts"
   },
@@ -30,9 +29,9 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "oxfmt": "0.44.0",
-    "oxlint": "1.59.0",
-    "oxlint-tsgolint": "0.20.0",
+    "oxfmt": "0.45.0",
+    "oxlint": "1.60.0",
+    "oxlint-tsgolint": "0.21.0",
     "typescript": "^6.0.2"
   },
   "keywords": [
