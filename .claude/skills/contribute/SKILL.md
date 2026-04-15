@@ -281,7 +281,7 @@ chore: update dependencies
 
 ### Example: Adding a New Flag
 
-1. **Update types** in `src/types.d.ts`:
+1. **Update types** in `src/types.ts`:
 
 ```typescript
 export interface WdeOptions {
